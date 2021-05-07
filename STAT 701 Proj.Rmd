@@ -1,6 +1,6 @@
 ---
 title: "STAT 701 Proj"
-author: "Michael Fukuyama"
+author: "Michael Fukuyama, Sami El Solh, Bryan Cai"
 date: "4/28/2021"
 output: html_document
 ---
