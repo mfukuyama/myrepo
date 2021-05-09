@@ -261,6 +261,13 @@ therefore an increase in revenue on a quarter by quarter basis may
 
 # Exploratory Data Analysis
 
+As discussed above, our data set includes information on the S&P 500 companies from stock price to iincome statement and balance sheet line items, as well as VIX and interest rates, spanning a ten-year period. 
+
+A quick look at the data tells us that we have 19,155 rows of unique visits with 82 columns.
+
+Unfortunately, because of inaccuracy in the data scrape and consequently inaccuracy in the calculated column values, we see a large number of missing values - 93,268. The NAs are spread across many different columns. Due to lack of time in rescraping, cleaning the data and troubleshooting the missing values, we decided to remove all NAs completely. This reduced the size of the data set by 5x to about 3.760 rows and 82 columns.
+
+Additionally, we plotted out the Y variable, stock price change. What we saw were 2 outlier data points, which we discovered were Amazon and Google. Though we surmised that this could have been the result of "once-in-a-lifetime" events such as massive stock splits, acquisitions or even just trading errors, we left them in the data because these were also events that were highly correlated for stock price movements, and so we would want to model them out even if the sample size for those events were small.
 ``` {r basic data exploration}
 dim(final_full_report)
 names(final_full_report)
@@ -268,38 +275,31 @@ head(final_full_report)
 # str(final_full_report)
 # summary(final_full_report)
 # unique(final_full_report$Ticker)
-print(final_full_report$Stock_Close)
 
 sum(is.na(final_full_report))
 sum(!complete.cases(final_full_report))
 # sapply(final_full_report, function(x) any(is.na(x)))
 
 final_full_report2 <- na.omit(final_full_report)
+dim(final_full_report2)
 plot(final_full_report2$QoQ_Pct_Growth_Stock_Price)
-```
-industry count of stocks
-```{r count stocks by industry,echo=FALSE, message=FALSE, warning=FALSE}
-final_full_report %>% 
-  group_by(Sector) %>% 
-  summarise(count = n_distinct(Ticker))
-```
-graph of log stock price by quarter and industry
-```{r change in stock price graph,echo=FALSE, message=FALSE, warning=FALSE}
-stock_plot <- final_full_report %>%
-  ggplot(aes(x = Date, y = log(Stock_Close), group = Sector, col = Sector)) + 
-  geom_line() + 
-  geom_point() +
-  theme_bw() 
-ggtitle("Log Stock Price by Quarter and Industry")
 
-ggplotly(stock_plot + 
-           theme(legend.position = "none"))
+final_full_report2[QoQ_Pct_Growth_Stock_Price > 60]
+
 ```
-
-
 # Modelling
 
 ## LASSO - Quarterly Analysis
+
+For our model analysis, we will be using LASSO followed by backward elimination.
+
+### Data preparation
+
+We first wanted to test quarter on quarter changes and effects, and so isolated columns that were Quarter on quarter (QoQ) based.
+
+We then split our data into training and validation data so that we can evaluate final model in an unbiased manner. Since we are using LASSO, we do not need to further split into training+testing as the cross validation in LASSO function handles the testing for us.
+
+Lastly, to eliminate downstream errors with cv.glmnet, we also removed all Inf values from the dataset.
 
 ```{r data preparation}
 
@@ -318,18 +318,22 @@ idx_val <- (which(! seq(1:N) %in% idx_train))
 data.train.q <- data_lasso_q[idx_train,]
 data.val.q <- data_lasso_q[idx_val,]
 
+# Remove Inf values from dataset
 data.train.q2 <- data.train.q[is.finite(rowSums(as.matrix(data.train.q))),]
 ```
+
+### LASSO - Quarterly Stock Price Changes
+
+We then conducted a Gaussian LASSO on the training data to find a parsimonious model.
 
 ``` {r LASSO - quarterly}
 set.seed(1)
 X <- model.matrix(QoQ_Pct_Growth_Stock_Price~.,data=data.train.q2)[,-1]
 Y <- as.matrix(data.train.q2[,"QoQ_Pct_Growth_Stock_Price"])
 
+set.seed(1)
 data.cv.q <- cv.glmnet(X, Y, alpha=1, nfolds=10)
 plot(data.cv.q$lambda) # Visualize # and values of lambdas
-data.cv.q$lambda.min # lambda with smallest CVM
-data.cv.q$lambda.1se # Largest lambda with CVM within CVSD bar
 plot(data.cv.q) # Visualize LASSO spread
 
 # Extract coefficients and names
@@ -343,30 +347,86 @@ fit.1se.lm <- lm(lm.input, data=data.train.q2)
 summary(fit.1se.lm)
 Anova(fit.1se.lm)
 ```
-```{R backward elimination}
+We see that LASSO yields 3 variables - COGs, R&D expense and VIX as variables that are statistically significant in driving stock price. Since these are all below the 0.05 p-value threshold, we do not need to engage in backward elimination to remove any of the variables.
 
-# Removing 1st variable
-var.1se.reduced1 <- var.1se[var.1se != "QoQ_Pct_Growth_Revenue"]
-lm.input2 <- as.formula(paste("QoQ_Pct_Growth_Stock_Price", "~", paste(var.1se.reduced1, collapse = "+")))
-fit.1se.lm.reduced1 <- lm(lm.input2, data=data.train.q2) 
-summary(fit.1se.lm.reduced1)
-Anova(fit.1se.lm.reduced1)
+Additionally, the F-stat indicates that the overall model is statistically significant. The R-squared is unusually high as well indicating a tight fit. However, the intercept is not statistically significant, indicating that if all other change variables are zero, there is not enough evidence to suggest that the stock price change would be zero.
 
-# Removing 2nd variable
-var.1se.reduced2 <- var.1se.reduced1[var.1se.reduced1 != "QoQ_Pct_Growth_Operating_Income"]
-lm.input3 <- as.formula(paste("QoQ_Pct_Growth_Stock_Price", "~", paste(var.1se.reduced2, collapse = "+")))
-fit.1se.lm.reduced2 <- lm(lm.input3, data=data.train.q2) 
-summary(fit.1se.lm.reduced2)
-Anova(fit.1se.lm.reduced2)
-```
+The big red flag on this output is that based on knowledge of the subject matter, we believe the model is highly flawed, as it does not incorporate some major variables of stock price changes, namely operating income, revenue and EPS which are all revenue-based measures and are indicators that investors look towards closely. There are a number of other reasons why the model may be flawed (again based on practitioner knowledge) that we will discuss under Key Takeaways for the LASSO section.
 
+### Model diagnosis
+
+To see improvements to the LASSO model, we first conduct a quick model analysis.
+
+We can see that the residuals actually clustered to one side, indicating that the model may have major  linearity gaps. In particular, there are some outliers (perhaps the Google/Amazon outliers we saw earlier) that could be driving the clustering in the residual plots.
+
+We see that the observations are not evenly distributed across band at all, and so does not fulfill the homoscedasticity requirement.
+
+In terms of normality, we see that the ends diverge quite severely from the straight line, indicating divergence at the tails.
 ``` {R improvements to model}
 par(mfrow=c(1,2))
 plot(fit.1se.lm.reduced2, 1)
 plot(fit.1se.lm.reduced2, 2)
 ```
 
+### LASSO - Yearly Stock Price Changes
+
+We do the exact same analysis as above but for yearly change measures to see if the model yields better results.
+
+``` {r LASSO - yearly}
+
+# Column removal
+cols.y <- grep("YoY*", colnames(final_full_report2))
+data_lasso_y <- final_full_report2[,..cols.y]
+
+# Split the data into training and validation
+set.seed(1)
+N.y <- nrow(data_lasso_y)
+n1.y <- floor(.823*N.y) # 82.3% on training, based on StackOverflow; no need testing data as we are using LASSO for model selection
+
+set.seed(1)
+idx_train.y <- sample(N.y, n1.y)
+idx_val.y <- (which(! seq(1:N.y) %in% idx_train.y))
+
+data.train.y <- data_lasso_y[idx_train.y,]
+data.val.y <- data_lasso_y[idx_val.y,]
+
+# Remove Inf values from dataset
+data.train.y2 <- data.train.y[is.finite(rowSums(as.matrix(data.train.y))),]
+
+set.seed(1)
+X.y <- model.matrix(YoY_Pct_Growth_Stock_Price~.,data=data.train.y2)[,-1]
+Y.y <- as.matrix(data.train.y2[,"YoY_Pct_Growth_Stock_Price"])
+
+set.seed(1)
+data.cv.y <- cv.glmnet(X.y, Y.y, alpha=1, nfolds=10)
+plot(data.cv.y$lambda) # Visualize # and values of lambdas
+plot(data.cv.y) # Visualize LASSO spread
+
+# Extract coefficients and names
+coef.1se.y <- coef(data.cv.y, s="lambda.1se")
+coef.1se.y <- coef.1se.y[which(coef.1se.y !=0),]
+var.1se.y <- rownames(as.matrix(coef.1se.y))[-1]
+
+# Feed coefficients into LM to get Relaxed LASSO
+lm.input.y <- as.formula(paste("YoY_Pct_Growth_Stock_Price", "~", paste(var.1se.y, collapse = "+")))
+fit.1se.lm.y <- lm(lm.input.y, data=data.train.y2) 
+summary(fit.1se.lm.y)
+Anova(fit.1se.lm.y)
+```
+
+As you can see, this model runs into the same flaws, with only R&D expense being a key variable and everything else ommitted. This again flies in the face of what we know is true in the investing world and so indicates that the model and even data may be flawed.
+
+### Key Takeaways
+
+We conclude that the model is largely flawed due to the diagnoses of the models, as well as from fundamental knowledge of investing, where investors look closely at revenue and operating income as key indicators of business valuation. Even though certain metrics of the model were robust, others indicate that the model may be nonsensical and are omitting many other variables.
+
+There are a number of next steps to further improve this LASSO model:
+- The data gaps could be ironed out and the missing data could be added to the dataset
+- We could have looked into and removed the outliers if they were truly one-time events that may not deal with the "fundamentals" of the business (i.e. what's on the income statement and balance sheet)
+- We could have taken stock price changes to be changes from a few days prior to earnings annoucnements rather than day-of, as we know from experience that stock prices change a little bit quicker than earnings calls
+- We could have tried to account for other very salient key drivers of stock prices, including: market sentiment to the company, general peak/troughs of business cycle, the presence of bubbles and animal spirits, performance of company relative to analyst expectations (vs. absolute performance), and many other drivers
+
+
 ## Random Forest
 
-# Key Risks and Next Steps
 
