@@ -63,7 +63,7 @@ options(scipen = 0, digits = 3)  # controls base R output
 if(!require("pacman")) install.packages("pacman")
 
 # add packages if needed
-pacman::p_load(tidyverse, dplyr, ggplot2, data.table, lubridate, glmnet, car, zoo, quantmod, BIS, tidyquant, plotly, timetk, VIM)
+pacman::p_load(tidyverse, dplyr, ggplot2, data.table, lubridate, glmnet, car, zoo, quantmod, BIS, tidyquant, plotly, timetk, VIM, tree, rpart, randomForest, ranger, rattle, pROC, partykit, glmnet, lda, data.table, ISLR, gridExtra, ggrepel, leaps, car, tidyverse, contrast, sandwich, stargazer)
 ```
 
 combine lists into single dataframe and clean dataframe
@@ -301,7 +301,7 @@ ggplotly(stock_plot +
 
 ## LASSO - Quarterly Analysis
 
-```{r data preparation}
+```{r data preparation,echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
 
 # Column removal
 cols <- grep("QoQ*", colnames(final_full_report2))
@@ -325,7 +325,7 @@ data.train.q3 <- data.train.q2[is.nan(rowSums(as.matrix(data.train.q2))),]
 
 ```
 
-``` {r LASSO - quarterly}
+``` {r LASSO - quarterly,echo=FALSE, message=FALSE, warning=FALSE}
 set.seed(1)
 X <- model.matrix(QoQ_Pct_Growth_Stock_Price~.,data=data.train.q2)[,-1]
 Y <- as.matrix(data.train.q2[,"QoQ_Pct_Growth_Stock_Price"])
@@ -346,8 +346,16 @@ lm.input <- as.formula(paste("log_total_death_per100k", "~", paste(var.1se, coll
 fit.1se.lm <- lm(lm.input, data=combined_dataset2) 
 summary(fit.1se.lm)
 ```
+## Multiple Regression
+
+``` {r Multiple regression, echo=FALSE, message=FALSE, warning=FALSE}
+
+```
 
 ## Random Forest
+``` {r Random Forest, echo=FALSE, message=FALSE, warning=FALSE}
+
+```
 
 # Model Comparison
 
