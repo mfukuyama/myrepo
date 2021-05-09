@@ -64,8 +64,7 @@ if(!require("pacman")) install.packages("pacman")
 # add packages if needed
 pacman::p_load(tidyverse, dplyr, ggplot2, data.table, lubridate, glmnet, car, zoo, quantmod, BIS, tidyquant, plotly, timetk, VIM, tree, rpart, randomForest, ranger, rattle, pROC, partykit, glmnet, lda, data.table, ISLR, gridExtra, ggrepel, leaps, car, tidyverse, contrast, sandwich, stargazer)
 ```
-
-combine lists into single dataframe and clean dataframe
+We first combine lists into single dataframe and clean dataframe.
 ```{r read data,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 filenames <- list.files(pattern = "*.csv")
 data_list <- lapply(filenames,fread)
@@ -86,8 +85,7 @@ names(data) <- gsub("&", "", names(data))
 
 data = subset(data, select=-c(Symbol,Name,Sector))
 ```
-
-converting billions/millions/thousands into actual numbers
+We then converted billions/millions/thousands into actual numbers.
 ```{r convert numbers,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 combined_table2 <- data %>% mutate( across( c(3:38),
                      ~ case_when(
@@ -97,10 +95,8 @@ combined_table2 <- data %>% mutate( across( c(3:38),
                          TRUE ~ parse_number(as.character(.), na = c("", "NA"), trim_ws = TRUE)
                      )
                      ))
-
 ```
-
-% changes over time of everything on IS and useful financial ratios
+We also calculated the % changes over time of everything on IS and useful financial ratios as additional column measures.
 ```{r changes over time,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 full_report <- combined_table2 %>%
   mutate(
@@ -137,9 +133,8 @@ full_report <- combined_table2 %>%
     QoQ_Pct_Growth_Total_Operating_Expenses = (Total_Operating_Expenses - lag(Total_Operating_Expenses))/lag(Total_Operating_Expenses),
     YoY_Pct_Growth_Total_Operating_Expenses = (Total_Operating_Expenses - lag(Total_Operating_Expenses, 4))/lag(Total_Operating_Expenses, 4)
   )
-
 ```
-joining interest rates to table
+Since interest rates were important to measure as a driver of stock prices, we joined interest rates to table.
 ```{r interest rates,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 datasets <- get_datasets()
 
@@ -160,10 +155,7 @@ names(interest_rates)[1] <- "Date"
 
 joined_interest_rates <- left_join(full_report, interest_rates, by = "Date")
 ```
-
-finding stock and VIX info
-
-
+We also joined VIX (a measure of volatility) and stock prices as response variable.
 ```{r stock prices,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 
 tickers <- unique(data$Ticker)
@@ -195,7 +187,6 @@ stock_prices <- stock_prices %>%
 stock_prices$Date <- as.yearmon(stock_prices$Date)
 
 joined_stock <- left_join(joined_interest_rates, stock_prices, by=c("Ticker" = "Ticker", "Date" = "Date"))
-
 ```
 
 ```{r VIX,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
@@ -253,14 +244,13 @@ final_full_report <- joined_stock_VIX_ind %>%
 
 ```
 
-## Predictor Variables
+## Note on Predictor Variable - stock price changes
 Our response variable is the change in stock price from one quarter to the next. Therefore, our predictor variables will all reflect changes in items on the income statement on a quarter by quarter basis. However, some businesses are inherently cyclical. For example, we expect there to always be an increase in revenue from the fall to winter quarter for a christmas holiday store. Therefore, to assess if the business is doing better overall, we compare the winter quarter in 2020 to the winter quarter in 2019. Consequentally, we also included all YoY growth for every income line. We also included QoQ change in the volatility index, since that reflects global issues like COVID-19, and the QoQ change of interest rates since debt is dependent on it. 
 
-therefore an increase in revenue on a quarter by quarter basis may 
 
 # Exploratory Data Analysis
 
-As discussed above, our data set includes information on the S&P 500 companies from stock price to iincome statement and balance sheet line items, as well as VIX and interest rates, spanning a ten-year period. 
+As discussed above, our data set includes information on the S&P 500 companies from stock price to income statement and balance sheet line items, as well as VIX and interest rates, spanning a ten-year period. 
 
 A quick look at the data tells us that we have 19,155 rows of unique visits with 82 columns.
 
@@ -284,7 +274,6 @@ dim(final_full_report2)
 plot(final_full_report2$QoQ_Pct_Growth_Stock_Price)
 
 final_full_report2[QoQ_Pct_Growth_Stock_Price > 60]
-
 ```
 # Modelling
 
@@ -293,7 +282,6 @@ For the modelling, we only used the predictor variables mentioned before and rem
 final_full_report2 = final_full_report2 %>% mutate(value = 1)  %>% spread(Sector, value,  fill = 0 ) 
 final_full_report2 = final_full_report2[,c(43:70,77:91)]
 ```
-
 
 ## LASSO - Quarterly Analysis
 
