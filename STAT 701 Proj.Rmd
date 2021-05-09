@@ -142,7 +142,9 @@ finding stock and VIX info
 
 
 ```{r stock prices,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
-tickers <- c("A","AAL","AAP","AAPL")
+
+tickers <- unique(data$Ticker)
+# tickers <- c("A","AAL","AAP","AAPL")
 sd <- as.Date("2011-01-01")
 ed <- as.Date("2021-03-30")
 
@@ -227,9 +229,7 @@ final_full_report <- joined_stock_VIX_ind %>%
 )
 
 ```
-```{r}
-colnames(final_full_report)
-```
+
 ## Predictor Variables
 Our response variable is the change in stock price from one quarter to the next. Therefore, our predictor variables will all reflect changes in items on the income statement on a quarter by quarter basis. However, some businesses are inherently cyclical. For example, we expect there to always be an increase in revenue from the fall to winter quarter for a christmas holiday store. Therefore, to assess if the business is doing better overall, we compare the winter quarter in 2020 to the winter quarter in 2019. Consequentally, we also included all YoY growth for every income line. We also included QoQ change in the volatility index, since that reflects global issues like COVID-19, and the QoQ change of interest rates since debt is dependent on it. 
 
@@ -248,7 +248,7 @@ print(final_full_report$Stock_Close)
 
 sum(is.na(final_full_report))
 sum(!complete.cases(final_full_report))
-sapply(final_full_report, function(x) any(is.na(x)))
+# sapply(final_full_report, function(x) any(is.na(x)))
 
 ```
 industry count of stocks
