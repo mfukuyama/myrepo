@@ -371,8 +371,28 @@ plot(fit.1se.lm.reduced2, 2)
 
 ```
 
+## Single Tree Using EBITDA
+``` {r single tree, echo=FALSE, message=FALSE, warning=FALSE}
+final_full_report3 = final_full_report2[QoQ_Pct_Growth_Operating_Income<30 & QoQ_Pct_Growth_Operating_Income>-30 ]
+
+plot(final_full_report3$QoQ_Pct_Growth_Operating_Income, final_full_report3$QoQ_Pct_Growth_Stock_Price, pch=16, cex=1, col = "blue",
+     xlab = "% change in EBITDA", 
+     ylab = "% change in Stock Price")
+
+fit.tree.single <- tree(QoQ_Pct_Growth_Stock_Price~QoQ_Pct_Growth_Operating_Income,final_full_report3) 
+plot(fit.tree.single)
+text(fit.tree.single)   
+partition.tree(fit.tree.single, col="red", lwd=2)
+
+points(final_full_report3$QoQ_Pct_Growth_Operating_Income, final_full_report3$QoQ_Pct_Growth_Stock_Price, pch=16, cex=.5)
+```
+``` {r single tree, echo=FALSE, message=FALSE, warning=FALSE}
+ summary(fit.tree.single)
+```
+
 ## Random Forest
 ``` {r Random Forest, echo=FALSE, message=FALSE, warning=FALSE}
+
 
 ```
 
