@@ -252,11 +252,6 @@ sum(!complete.cases(final_full_report))
 
 final_full_report2 <- na.omit(final_full_report)
 dim(final_full_report2)
-
-df <- df[is.finite(rowSums(df)),]
-
-
-
 ```
 industry count of stocks
 ```{r count stocks by industry,echo=FALSE, message=FALSE, warning=FALSE}
@@ -299,22 +294,19 @@ idx_val <- (which(! seq(1:N) %in% idx_train))
 data.train.q <- data_lasso_q[idx_train,]
 data.val.q <- data_lasso_q[idx_val,]
 
+is.infinite(rowSums(as.matrix(data.train.q)))
+
+data.train.q2 <- data.train.q[is.finite(rowSums(as.matrix(data.train.q))),]
+data.train.q3 <- data.train.q2[is.nan(rowSums(as.matrix(data.train.q2))),]
+
 ```
 
 ``` {r LASSO - quarterly}
 set.seed(1)
-str(data.train.q)
-X <- model.matrix(QoQ_Pct_Growth_Stock_Price~.,data=data.train.q)[,-1]
-Y <- as.matrix(data.train.q[,"QoQ_Pct_Growth_Stock_Price"])
+X <- model.matrix(QoQ_Pct_Growth_Stock_Price~.,data=data.train.q2)[,-1]
+Y <- as.matrix(data.train.q2[,"QoQ_Pct_Growth_Stock_Price"])
 
-sum(is.na(Y1))
-install.packages("VIM")
-library("VIM")
-
-countInf(X1)
-
-
-data.cv.q <- cv.glmnet(X1, Y1, alpha=1, nfolds=10)
+data.cv.q <- cv.glmnet(X, Y, alpha=1, nfolds=10)
 plot(data.cv.q$lambda) # Visualize # and values of lambdas
 data.cv.q$lambda.min # lambda with smallest CVM
 data.cv.q$lambda.1se # Largest lambda with CVM within CVSD bar
@@ -323,7 +315,7 @@ plot(data.cv.q) # Visualize LASSO spread
 # Extract coefficients and names
 coef.1se <- coef(data.cv.q, s="lambda.1se")
 coef.1se <- coef.1se[which(coef.1se !=0),]
-var.1se <- rownames(as.matrix(coef.1se))[2:12]
+var.1se <- rownames(as.matrix(coef.1se))[-1]
 
 # Feed coefficients into LM to get Relaxed LASSO
 lm.input <- as.formula(paste("log_total_death_per100k", "~", paste(var.1se, collapse = "+")))
