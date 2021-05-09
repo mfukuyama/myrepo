@@ -39,7 +39,7 @@ options(scipen = 0, digits = 3)  # controls base R output
 if(!require("pacman")) install.packages("pacman")
 
 # add packages if needed
-pacman::p_load(tidyverse, dplyr, ggplot2, data.table, lubridate, glmnet, car, zoo, quantmod, BIS, tidyquant, plotly)
+pacman::p_load(tidyverse, dplyr, ggplot2, data.table, lubridate, glmnet, car, zoo, quantmod, BIS, tidyquant, plotly, timetk)
 ```
 
 combine lists into single dataframe and clean dataframe
@@ -237,7 +237,20 @@ therefore an increase in revenue on a quarter by quarter basis may
 
 # Exploratory Data Analysis
 
+``` {r basic data exploration}
+dim(final_full_report)
+names(final_full_report)
+head(final_full_report)
+# str(final_full_report)
+# summary(final_full_report)
+# unique(final_full_report$Ticker)
+print(final_full_report$Stock_Close)
 
+sum(is.na(final_full_report))
+sum(!complete.cases(final_full_report))
+sapply(final_full_report, function(x) any(is.na(x)))
+
+```
 industry count of stocks
 ```{r count stocks by industry,echo=FALSE, message=FALSE, warning=FALSE}
 final_full_report %>% 
@@ -260,13 +273,33 @@ ggplotly(stock_plot +
 
 # Modelling
 
-## VIF
+## LASSO - Quarterly Analysis
 
-## LASSO
+```{r data preparation}
 
-Test by Bryan
+# Column removal
+cols <- grep("QoQ*", colnames(final_full_report))
+data_lasso_q <- final_full_report[,..cols]
 
-## Linear Regression
+# Split the data into training and validation
+set.seed(1)
+N <- nrow(data_lasso_q)
+n1 <- floor(.823*N) # 82.3% on training, based on StackOverflow; no need testing data as we are using LASSO for model selection
+
+idx_train <- sample(N, n1)
+idx_val <- (which(! seq(1:N) %in% idx_train))
+
+data.train.q <- data_lasso_q[idx_train,]
+data.val.q <- data_lasso_q[idx_val,]
+```
+
+``` {r LASSO - quarterly}
+set.seed(1)
+X <- model.matrix(QoQ_Pct_Growth_Stock_Price~.,data=data.train.q)[,-1]
+Y <- data.train.q$QoQ_Pct_Growth_Stock_Price
+fit.lasso.0 <- cv.glmnet(X,Y, alpha=1, nfolds = 10, family = "binomial", type.measure = "deviance")
+plot(fit.lasso.0)
+```
 
 ## Random Forest
 
