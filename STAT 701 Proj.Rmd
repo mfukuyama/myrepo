@@ -1,11 +1,37 @@
 ---
-title: "STAT 701 Proj"
+title: "STAT 701 Proj: Analyzing what Drives Stock Prices" 
 author: "Michael Fukuyama, Sami El Solh, Bryan Cai"
 date: "05/09/2021"
-output: html_document
+output:
+  html_document:
+    code_folding: show
+    highlight: haddock
+    number_sections: yes
+    theme: lumen
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+  pdf_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: '4'
+urlcolor: blue
 ---
 
-```{r Setup, include=FALSE, results='hide', warning=FALSE}
+# Executive Summary 
+abc
+## Goal of the study
+abc
+## Data
+## Findings
+
+# Data Preperation 
+
+## Data scraping
+
+## Data processing 
+
+```{r Setup, include=FALSE, echo=FALSE, results='hide', warning=FALSE}
 knitr::opts_chunk$set(echo = T, fig.width=8, fig.height=4)
 options(scipen = 0, digits = 3)  # controls base R output
 
@@ -17,7 +43,7 @@ pacman::p_load(tidyverse, dplyr, ggplot2, data.table, lubridate, glmnet, car, zo
 ```
 
 combine lists into single dataframe and clean dataframe
-```{r read data}
+```{r read data,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 filenames <- list.files(pattern = "*.csv")
 data_list <- lapply(filenames,fread)
 data <- rbindlist(data_list, fill = TRUE)
@@ -34,11 +60,12 @@ names(data) <- gsub(" ", "_", names(data))
 names(data) <- gsub("-", "_", names(data))
 
 names(data) <- gsub("&", "", names(data))
-data
+
+data = subset(data, select=-c(Symbol,Name,Sector))
 ```
 
 converting billions/millions/thousands into actual numbers
-```{r convert numbers}
+```{r convert numbers,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 combined_table2 <- data %>% mutate( across( c(3:38),
                      ~ case_when(
                          str_detect(., 'B') ~ parse_number(as.character(.), na = c("", "NA")) * 1e9,
@@ -48,11 +75,10 @@ combined_table2 <- data %>% mutate( across( c(3:38),
                      )
                      ))
 
-combined_table2
 ```
 
 % changes over time of everything on IS and useful financial ratios
-```{r changes over time}
+```{r changes over time,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 full_report <- combined_table2 %>%
   mutate(
     DE_Ratio = Total_Liabilities / Shareholders_Equity,
@@ -89,10 +115,9 @@ full_report <- combined_table2 %>%
     YoY_Pct_Growth_Total_Operating_Expenses = (Total_Operating_Expenses - lag(Total_Operating_Expenses, 4))/lag(Total_Operating_Expenses, 4)
   )
 
-full_report
 ```
 joining interest rates to table
-```{r interest rates}
+```{r interest rates,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 datasets <- get_datasets()
 
 interest_data <- get_bis(datasets$url[datasets$name == "Policy rates (monthly)"],quiet = TRUE)
@@ -111,13 +136,12 @@ interest_rates<- interest_rates %>%
 names(interest_rates)[1] <- "Date"
 
 joined_interest_rates <- left_join(full_report, interest_rates, by = "Date")
-joined_interest_rates
 ```
 
 finding stock and VIX info
 
 
-```{r stock prices}
+```{r stock prices,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 tickers <- c("A","AAL","AAP","AAPL")
 sd <- as.Date("2011-01-01")
 ed <- as.Date("2021-03-30")
@@ -145,13 +169,11 @@ stock_prices <- stock_prices %>%
 
 stock_prices$Date <- as.yearmon(stock_prices$Date)
 
-stock_prices
-
 joined_stock <- left_join(joined_interest_rates, stock_prices, by=c("Ticker" = "Ticker", "Date" = "Date"))
-joined_stock
+
 ```
 
-```{r VIX}
+```{r VIX,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 VIX <- getSymbols("^VIX", src = "yahoo", from = "2011-01-01", to = "2020-12-31", auto.assign = FALSE)
 
 VIX <- as.data.frame(as.matrix(VIX))
@@ -184,21 +206,16 @@ VIX <- VIX %>%
 
 VIX <- VIX[,-3:-4] 
 
-VIX
-
 joined_stock_VIX <- left_join(joined_stock, VIX, by = "Date")
-joined_stock_VIX
 ```
 
 joining file with industry of companies
-```{r company sector}
-ind <- data.table::fread("/Users/micha/OneDrive/Documents/R/SP500_2017.csv")
-joined_stock_VIX_ind <- left_join(joined_stock_VIX, ind, by=c("Ticker" = "Ticker_Symbol"))
-
-joined_stock_VIX_ind
+```{r company sector,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+ind <- data.table::fread("SP500_2017.csv")
+joined_stock_VIX_ind <- left_join(joined_stock_VIX, ind, by=c("Ticker" = "Symbol"))
 ```
 calculating change in interest rate, stock price, and VIX
-```{r join stock and VIX to original table}
+```{r join stock and VIX to original table,echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 final_full_report <- joined_stock_VIX_ind %>%
   mutate(
     QoQ_Pct_Growth_US_key_interest_rate = (US_key_interest_rate - lag(US_key_interest_rate))/lag(US_key_interest_rate),
@@ -209,16 +226,26 @@ final_full_report <- joined_stock_VIX_ind %>%
     YoY_Pct_Growth_VIX = (VIX.Close - lag(VIX.Close, 4))/lag(VIX.Close, 4),
 )
 
-final_full_report
 ```
+```{r}
+colnames(final_full_report)
+```
+## Predictor Variables
+Our response variable is the change in stock price from one quarter to the next. Therefore, our predictor variables will all reflect changes in items on the income statement on a quarter by quarter basis. However, some businesses are inherently cyclical. For example, we expect there to always be an increase in revenue from the fall to winter quarter for a christmas holiday store. Therefore, to assess if the business is doing better overall, we compare the winter quarter in 2020 to the winter quarter in 2019. Consequentally, we also included all YoY growth for every income line. We also included QoQ change in the volatility index, since that reflects global issues like COVID-19, and the QoQ change of interest rates since debt is dependent on it. 
+
+therefore an increase in revenue on a quarter by quarter basis may 
+
+# Exploratory Data Analysis
+
+
 industry count of stocks
-```{r count stocks by industry}
+```{r count stocks by industry,echo=FALSE, message=FALSE, warning=FALSE}
 final_full_report %>% 
   group_by(Sector) %>% 
   summarise(count = n_distinct(Ticker))
 ```
 graph of log stock price by quarter and industry
-```{r change in stock price graph}
+```{r change in stock price graph,echo=FALSE, message=FALSE, warning=FALSE}
 stock_plot <- final_full_report %>%
   ggplot(aes(x = Date, y = log(Stock_Close), group = Sector, col = Sector)) + 
   geom_line() + 
@@ -229,3 +256,17 @@ ggtitle("Log Stock Price by Quarter and Industry")
 ggplotly(stock_plot + 
            theme(legend.position = "none"))
 ```
+
+
+# Modelling
+
+## VIF
+
+## LASSO
+
+## Linear Regression
+
+## Random Forest
+
+# Model Comparison
+
