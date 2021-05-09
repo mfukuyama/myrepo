@@ -251,7 +251,7 @@ sum(!complete.cases(final_full_report))
 # sapply(final_full_report, function(x) any(is.na(x)))
 
 final_full_report2 <- na.omit(final_full_report)
-dim(final_full_report2)
+plot(final_full_report2$QoQ_Pct_Growth_Stock_Price)
 ```
 industry count of stocks
 ```{r count stocks by industry,echo=FALSE, message=FALSE, warning=FALSE}
@@ -294,11 +294,7 @@ idx_val <- (which(! seq(1:N) %in% idx_train))
 data.train.q <- data_lasso_q[idx_train,]
 data.val.q <- data_lasso_q[idx_val,]
 
-is.infinite(rowSums(as.matrix(data.train.q)))
-
 data.train.q2 <- data.train.q[is.finite(rowSums(as.matrix(data.train.q))),]
-data.train.q3 <- data.train.q2[is.nan(rowSums(as.matrix(data.train.q2))),]
-
 ```
 
 ``` {r LASSO - quarterly}
@@ -318,12 +314,35 @@ coef.1se <- coef.1se[which(coef.1se !=0),]
 var.1se <- rownames(as.matrix(coef.1se))[-1]
 
 # Feed coefficients into LM to get Relaxed LASSO
-lm.input <- as.formula(paste("log_total_death_per100k", "~", paste(var.1se, collapse = "+")))
-fit.1se.lm <- lm(lm.input, data=combined_dataset2) 
+lm.input <- as.formula(paste("QoQ_Pct_Growth_Stock_Price", "~", paste(var.1se, collapse = "+")))
+fit.1se.lm <- lm(lm.input, data=data.train.q2) 
 summary(fit.1se.lm)
+Anova(fit.1se.lm)
+```
+```{R backward elimination}
+
+# Removing 1st variable
+var.1se.reduced1 <- var.1se[var.1se != "QoQ_Pct_Growth_Revenue"]
+lm.input2 <- as.formula(paste("QoQ_Pct_Growth_Stock_Price", "~", paste(var.1se.reduced1, collapse = "+")))
+fit.1se.lm.reduced1 <- lm(lm.input2, data=data.train.q2) 
+summary(fit.1se.lm.reduced1)
+Anova(fit.1se.lm.reduced1)
+
+# Removing 2nd variable
+var.1se.reduced2 <- var.1se.reduced1[var.1se.reduced1 != "QoQ_Pct_Growth_Operating_Income"]
+lm.input3 <- as.formula(paste("QoQ_Pct_Growth_Stock_Price", "~", paste(var.1se.reduced2, collapse = "+")))
+fit.1se.lm.reduced2 <- lm(lm.input3, data=data.train.q2) 
+summary(fit.1se.lm.reduced2)
+Anova(fit.1se.lm.reduced2)
+```
+
+``` {R improvements to model}
+par(mfrow=c(1,2))
+plot(fit.1se.lm.reduced2, 1)
+plot(fit.1se.lm.reduced2, 2)
 ```
 
 ## Random Forest
 
-# Model Comparison
+# Key Risks and Next Steps
 
