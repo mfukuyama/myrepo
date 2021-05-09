@@ -47,9 +47,8 @@ Create tables for industry, US key interest rate, stock price, and VIX and join 
 Create new variables to reflect change in % quarter-over-quarter and year-over-year for all metrics
 Create new variables that calculate important financial ratios and valuation figures
 The resulting data frame had these 76 columns:
-```{r}
-colnames(full_report)
-```
+
+![](imgC.png)
 
 
 Stock price is the dependent variable in this analysis. We included US key interest rate, VIX, and quarter-over-quarter and year-over-year metrics as potential independent variables for our model. Our next step was to determine which ones were significant.
@@ -299,6 +298,13 @@ ggplotly(stock_plot +
 
 # Modelling
 
+For the modelling, we only used the predictor variables mentioned before and removed all other columms. We one hot encoded sector to include it in our analysis.
+```{r}
+final_full_report2 = final_full_report2 %>% mutate(value = 1)  %>% spread(Sector, value,  fill = 0 ) 
+final_full_report2 = final_full_report2[,c(43:70,77:91)]
+```
+
+
 ## LASSO - Quarterly Analysis
 
 ```{r data preparation,echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
@@ -390,9 +396,14 @@ points(final_full_report3$QoQ_Pct_Growth_Operating_Income, final_full_report3$Qo
  summary(fit.tree.single)
 ```
 
-## Random Forest
+## Random Forest 
 ``` {r Random Forest, echo=FALSE, message=FALSE, warning=FALSE}
 
+names(final_full_report2) = make.names(colnames(final_full_report2), unique = FALSE, allow_ = TRUE)
+
+fit.rf <- randomForest(QoQ_Pct_Growth_Stock_Price~., final_full_report2, mtry=5, ntree=500)    # change ntree
+plot(fit.rf, col="red", pch=16, type="p", 
+     main="default plot")
 
 ```
 
