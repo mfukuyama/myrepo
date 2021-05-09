@@ -31,6 +31,30 @@ abc
 
 ## Data processing 
 
+Through scraping the data, we created 481 files of this format (not all rows/columns shown):
+![](imgA.png)
+
+While this contained most of the data we needed, it was not structured properly for the analysis we wanted to do. We required a stock ticker column so that each file could be joined with separate industry sector and stock price tables. The data also needed to be transposed to create quarter-over-quarter and year-over-year change calculations for each of the metrics included in the table. We were unable to figure out how to do both simultaneously, so we manually adjusted each of the 481 files in Excel to have the following format:
+
+![](imgB.png)
+
+
+The next step was to load all 481 files, merge them into a single data frame, and clean up the column names.
+
+The rest of the data preparation and cleansing steps were as follows:
+Change strings (40.08M) to numbers (40,000,080)
+Create tables for industry, US key interest rate, stock price, and VIX and join to original data frame
+Create new variables to reflect change in % quarter-over-quarter and year-over-year for all metrics
+Create new variables that calculate important financial ratios and valuation figures
+The resulting data frame had these 76 columns:
+```{r}
+colnames(full_report)
+```
+
+
+Stock price is the dependent variable in this analysis. We included US key interest rate, VIX, and quarter-over-quarter and year-over-year metrics as potential independent variables for our model. Our next step was to determine which ones were significant.
+
+
 ```{r Setup, include=FALSE, echo=FALSE, results='hide', warning=FALSE}
 knitr::opts_chunk$set(echo = T, fig.width=8, fig.height=4)
 options(scipen = 0, digits = 3)  # controls base R output
