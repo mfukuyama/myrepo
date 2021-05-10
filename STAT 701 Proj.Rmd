@@ -21,7 +21,6 @@ urlcolor: blue
 # Executive Summary 
 abc
 ## Goal of the study
-abc
 ## Data
 ## Findings
 
@@ -278,9 +277,24 @@ final_full_report2[QoQ_Pct_Growth_Stock_Price > 60]
 # Modelling
 
 For the modelling, we only used the predictor variables mentioned before and removed all other columms. We one hot encoded sector to include it in our analysis.
-```{r}
+```{r,echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
 final_full_report2 = final_full_report2 %>% mutate(value = 1)  %>% spread(Sector, value,  fill = 0 ) 
 final_full_report2 = final_full_report2[,c(43:70,77:91)]
+final_full_report2 = final_full_report2[rowSums(is.na(final_full_report2)) == 0,]
+final_full_report2 = final_full_report2[!is.infinite(rowSums(final_full_report2)),]
+```
+
+
+## Multiple Linear Regression
+
+
+```{r}
+fit.ml.q = lm(QoQ_Pct_Growth_Stock_Price~., data=final_full_report2)
+
+fit.ml.q2 = lm(QoQ_Pct_Growth_Stock_Price~QoQ_Cost_of_Goods_Sold+QoQ_Pct_Growth_Net_Income+QoQ_Pct_Growth_Provision_for_Income_Taxes+QoQ_Pct_Growth_Research_and_Development_Expense+QoQ_Pct_Growth_Revenue +QoQ_Pct_Growth_SGA_Expense+QoQ_Pct_Growth_VIX, data=final_full_report2)
+
+fit.ml.q2 = lm(QoQ_Pct_Growth_Stock_Price~QoQ_Pct_Growth_Provision_for_Income_Taxes+QoQ_Pct_Growth_Research_and_Development_Expense+QoQ_Pct_Growth_Revenue +QoQ_Pct_Growth_SGA_Expense+QoQ_Pct_Growth_VIX, data=final_full_report2)
+summary(fit.ml.q2)
 ```
 
 ## LASSO - Quarterly Analysis
@@ -312,9 +326,9 @@ idx_val <- (which(! seq(1:N) %in% idx_train))
 data.train.q <- data_lasso_q[idx_train,]
 data.val.q <- data_lasso_q[idx_val,]
 
-# Remove Inf values from dataset
-data.train.q2 <- data.train.q[is.finite(rowSums(as.matrix(data.train.q))),]
 ```
+
+
 
 ### LASSO - Quarterly Stock Price Changes
 
@@ -336,12 +350,10 @@ coef.1se <- coef.1se[which(coef.1se !=0),]
 var.1se <- rownames(as.matrix(coef.1se))[-1]
 
 # Feed coefficients into LM to get Relaxed LASSO
-lm.input <- as.formula(paste("QoQ_Pct_Growth_Stock_Price", "~", paste(var.1se, collapse = "+")))
+lm.input <- as.formula(paste("QoQ_Pct_Growth_Stock_Price", "~.", paste(var.1se, collapse = "+")))
 fit.1se.lm <- lm(lm.input, data=data.train.q2) 
-summary(fit.1se.lm)
-Anova(fit.1se.lm)
 ```
-We see that LASSO yields 3 variables - COGs, R&D expense and VIX as variables that are statistically significant in driving stock price. Since these are all below the 0.05 p-value threshold, we do not need to engage in backward elimination to remove any of the variables.
+We discovered that LASSO yields 3 variables - COGs, R&D expense and VIX as variables that are statistically significant in driving stock price. Since these are all below the 0.05 p-value threshold, we do not need to engage in backward elimination to remove any of the variables.
 
 Additionally, the F-stat indicates that the overall model is statistically significant. The R-squared is unusually high as well indicating a tight fit. However, the intercept is not statistically significant, indicating that if all other change variables are zero, there is not enough evidence to suggest that the stock price change would be zero.
 
@@ -408,7 +420,7 @@ summary(fit.1se.lm.y)
 Anova(fit.1se.lm.y)
 ```
 
-As you can see, this model runs into the same flaws, with only R&D expense being a key variable and everything else ommitted. This again flies in the face of what we know is true in the investing world and so indicates that the model and even data may be flawed.
+As you can see, this model runs into similar flaws by prioritizing R&D expense; however, it does identify Growth_Provision_for_Income_Taxes which is equivalent to future expected income statements - this is strongly correlated with cashflow and is logical. 
 
 ### Key Takeaways
 
@@ -423,32 +435,35 @@ There are a number of next steps to further improve this LASSO model:
 
 ## Single Tree Using EBITDA
 ``` {r single tree, echo=FALSE, message=FALSE, warning=FALSE}
-final_full_report3 = final_full_report2[QoQ_Pct_Growth_Operating_Income<30 & QoQ_Pct_Growth_Operating_Income>-30 ]
+final_full_report2 = final_full_report2[QoQ_Pct_Growth_Operating_Income<50 & QoQ_Pct_Growth_Operating_Income>-50 ]
 
-plot(final_full_report3$QoQ_Pct_Growth_Operating_Income, final_full_report3$QoQ_Pct_Growth_Stock_Price, pch=16, cex=1, col = "blue",
+plot(final_full_report2$QoQ_Pct_Growth_Operating_Income, final_full_report2$QoQ_Pct_Growth_Stock_Price, pch=16, cex=1, col = "blue",
      xlab = "% change in EBITDA", 
      ylab = "% change in Stock Price")
 
-fit.tree.single <- tree(QoQ_Pct_Growth_Stock_Price~QoQ_Pct_Growth_Operating_Income,final_full_report3) 
+fit.tree.single <- tree(QoQ_Pct_Growth_Stock_Price~QoQ_Pct_Growth_Operating_Income,final_full_report2) 
 plot(fit.tree.single)
 text(fit.tree.single)   
 partition.tree(fit.tree.single, col="red", lwd=2)
+points(final_full_report2$QoQ_Pct_Growth_Operating_Income, final_full_report2$QoQ_Pct_Growth_Stock_Price, pch=16, cex=.5)
+```
 
-points(final_full_report3$QoQ_Pct_Growth_Operating_Income, final_full_report3$QoQ_Pct_Growth_Stock_Price, pch=16, cex=.5)
-```
-``` {r single tree, echo=FALSE, message=FALSE, warning=FALSE}
- summary(fit.tree.single)
-```
 
 ## Random Forest 
 ``` {r Random Forest, echo=FALSE, message=FALSE, warning=FALSE}
 
 names(final_full_report2) = make.names(colnames(final_full_report2), unique = FALSE, allow_ = TRUE)
 
-fit.rf <- randomForest(QoQ_Pct_Growth_Stock_Price~., final_full_report2, mtry=5, ntree=500)    # change ntree
-plot(fit.rf, col="red", pch=16, type="p", 
-     main="default plot")
+fit.rf500 <- randomForest(QoQ_Pct_Growth_Stock_Price~., final_full_report2, mtry=5, ntree=500)    # change ntree
+fit.rf <- randomForest(QoQ_Pct_Growth_Stock_Price~., final_full_report2, mtry=5, ntree=100)    # change ntree
 
+plot(fit.rf500, col="red", pch=16, type="p", 
+     main="Trees vs error plot")
 ```
 
+```{r}
+m1 <- mean((predict(fit.tree.single, final_full_report2) - final_full_report2$QoQ_Pct_Growth_Stock_Price)^2)
+m10 <- mean((predict(fit.rf, final_full_report2) - final_full_report2$QoQ_Pct_Growth_Stock_Price)^2)
+data.frame(MSE_Single=m1, MSE_Random_Forest=m10)
+``````
 
