@@ -19,16 +19,14 @@ urlcolor: blue
 ---
 
 # Executive Summary 
-abc
 ## Goal of the study
+The goal of this study was to analyze what financial data moves stock. We chose data that was released after earnings was announced so we can see how stock price reacts to the new income statement and balance statement. Under traditional finance theory, we expect stock value to reflect expected future cash flows. However, we were curious if present cash flows affect stock price as well. We also factored in industry to see if companies within tech value revenue over net income or cash. 
 ## Data
+We data scraped financial statements for every quarter for every SP 500 company for the last 10 years on https://ycharts.com/financials/AAPL/income_statement/quarterly/4. Since the website had a firewall, we had to use beautiful soup and other programs on python to bypass the firewall and scrape the html tables. It took approximately 3 hours to scrape all the data. To be able to use the data, we took the change in every line item as a % from quarter over quarter and year over year. 
 ## Findings
+We found through multiple regression that investors value both current cash flows received (even though this goes against financial theory) and value expected future cash flows, that was reflected in expected future income. The VIX was significant in one model but absent in others. Interestingly enough, interest rates was not significant at all (probably since the expectation of their movement drives stock prices). One factor that came up a lot in both LASSO and multiple regression was R&D expense even though it does not make up a lot of the costs. 
 
 # Data Preperation 
-
-## Data scraping
-
-## Data processing 
 
 Through scraping the data, we created 481 files of this format (not all rows/columns shown):
 ![](imgA.png)
@@ -287,6 +285,7 @@ final_full_report2 = final_full_report2[!is.infinite(rowSums(final_full_report2)
 
 ## Multiple Linear Regression
 
+We used lm() on all variables using QoQ_Pct_Growth_Stock_Price as the response. We then selected the variables that were *** very significant, and then did the process one more time. The results are shown below. We were pleasantly suprised since the model factored in future expected cash flows but also current cash flow in the quarter through Revenue, SG&A expense, and R&D expense. We were slightly suprised that COGS did not appear - perhaps it is because COGS changes are not as significant over the long term since they revert to similar margins due to fundamental business models? We also were happy to see VIX as that represents risks to cashflow in the future that may not be reflected in the financial statements yet. The R^2 of 0.96 indicated overfitting and linear assumptions are not completely met; however, we were still happy with the overall model. 
 
 ```{r}
 fit.ml.q = lm(QoQ_Pct_Growth_Stock_Price~., data=final_full_report2)
@@ -336,8 +335,8 @@ We then conducted a Gaussian LASSO on the training data to find a parsimonious m
 
 ``` {r LASSO - quarterly,echo=FALSE, message=FALSE, warning=FALSE}
 set.seed(1)
-X <- model.matrix(QoQ_Pct_Growth_Stock_Price~.,data=data.train.q2)[,-1]
-Y <- as.matrix(data.train.q2[,"QoQ_Pct_Growth_Stock_Price"])
+X <- model.matrix(QoQ_Pct_Growth_Stock_Price~.,data=data.train.q)[,-1]
+Y <- as.matrix(data.train.q[,"QoQ_Pct_Growth_Stock_Price"])
 
 set.seed(1)
 data.cv.q <- cv.glmnet(X, Y, alpha=1, nfolds=10)
@@ -351,7 +350,7 @@ var.1se <- rownames(as.matrix(coef.1se))[-1]
 
 # Feed coefficients into LM to get Relaxed LASSO
 lm.input <- as.formula(paste("QoQ_Pct_Growth_Stock_Price", "~.", paste(var.1se, collapse = "+")))
-fit.1se.lm <- lm(lm.input, data=data.train.q2) 
+fit.1se.lm <- lm(lm.input, data=data.train.q) 
 ```
 We discovered that LASSO yields 3 variables - COGs, R&D expense and VIX as variables that are statistically significant in driving stock price. Since these are all below the 0.05 p-value threshold, we do not need to engage in backward elimination to remove any of the variables.
 
@@ -370,8 +369,8 @@ We see that the observations are not evenly distributed across band at all, and 
 In terms of normality, we see that the ends diverge quite severely from the straight line, indicating divergence at the tails.
 ``` {R improvements to model}
 par(mfrow=c(1,2))
-plot(fit.1se.lm.reduced2, 1)
-plot(fit.1se.lm.reduced2, 2)
+#plot(fit.1se.lm.reduced2, 1)
+#plot(fit.1se.lm.reduced2, 2)
 ```
 
 ### LASSO - Yearly Stock Price Changes
@@ -433,7 +432,9 @@ There are a number of next steps to further improve this LASSO model:
 - We could have tried to account for other very salient key drivers of stock prices, including: market sentiment to the company, general peak/troughs of business cycle, the presence of bubbles and animal spirits, performance of company relative to analyst expectations (vs. absolute performance), and many other drivers
 
 
-## Single Tree Using EBITDA
+## Decision Trees
+We coded a single tree and a random forest algorithim with 100 decision trees. We used QoQ_Pct_Growth_Operating_Income as our variable for the single tree as this is a proxy for cash flow. Unfortunately, the plot showed little variation and the results were thus not significant. We had more luck with the random forest tree. We chose 100 as it was the elbow in the graph and below and we were happy that the MSE decreased by a factor of 10. 
+
 ``` {r single tree, echo=FALSE, message=FALSE, warning=FALSE}
 final_full_report2 = final_full_report2[QoQ_Pct_Growth_Operating_Income<50 & QoQ_Pct_Growth_Operating_Income>-50 ]
 
@@ -449,7 +450,6 @@ points(final_full_report2$QoQ_Pct_Growth_Operating_Income, final_full_report2$Qo
 ```
 
 
-## Random Forest 
 ``` {r Random Forest, echo=FALSE, message=FALSE, warning=FALSE}
 
 names(final_full_report2) = make.names(colnames(final_full_report2), unique = FALSE, allow_ = TRUE)
